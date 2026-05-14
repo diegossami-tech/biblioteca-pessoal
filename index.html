@@ -142,6 +142,17 @@
   .label-row { display: flex; align-items: center; justify-content: space-between; margin-top: 2rem; margin-bottom: 0.6rem; }
   .add-folder { opacity: 0.4; transition: opacity 0.15s; }
   .add-folder:hover { opacity: 1; }
+  .folder-zone {
+    border-radius: 0.3rem;
+    padding: 0.1rem 0;
+    margin-top: 1.65rem;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+  }
+  .folder-zone .label-row { margin-top: 0.25rem; }
+  body.dragging-item .folder-zone {
+    background: rgba(61, 90, 71, 0.045);
+    box-shadow: inset 0 0 0 1px rgba(61, 90, 71, 0.1);
+  }
   .folder-list {
     min-height: 2rem;
     border-radius: 0.25rem;
@@ -1137,14 +1148,16 @@ function renderApp() {
           ${sysCols.map(col => renderColItem(col, state.activeCol === col.id, c[col.id] || 0, false)).join('')}
         </div>
 
-        <div class="label-row">
-          <div class="sidebar-label inline">Minhas Pastas</div>
-          <button class="add-folder" data-action="add-col" title="Nova coleção">${icon('plus', 14)}</button>
-        </div>
-        <div class="folder-list" data-folder-list-drop="${userCols.length === 1 ? esc(userCols[0].id) : ''}">
-          ${userCols.length === 0
-            ? '<p class="folder-empty">Crie pastas próprias para arrastar itens</p>'
-            : userCols.map(col => renderColItem(col, state.activeCol === col.id, c[col.id] || 0, true)).join('')}
+        <div class="folder-zone" data-folder-area>
+          <div class="label-row">
+            <div class="sidebar-label inline">Minhas Pastas</div>
+            <button class="add-folder" data-action="add-col" title="Nova coleção">${icon('plus', 14)}</button>
+          </div>
+          <div class="folder-list">
+            ${userCols.length === 0
+              ? '<p class="folder-empty">Crie pastas próprias para arrastar itens</p>'
+              : userCols.map(col => renderColItem(col, state.activeCol === col.id, c[col.id] || 0, true)).join('')}
+          </div>
         </div>
       </aside>
 
@@ -1736,17 +1749,28 @@ document.addEventListener('dragend', (e) => {
   setDraggingMode(false);
 });
 
-function getCollectionDropTarget(el) {
+function closestFolderTarget(folderArea, y) {
+  const targets = Array.from(folderArea?.querySelectorAll?.('.folder-list [data-drop-col]') || []);
+  if (!targets.length) return null;
+  if (targets.length === 1 || typeof y !== 'number') return targets[0];
+
+  return targets.reduce((best, target) => {
+    const rect = target.getBoundingClientRect();
+    const distance = Math.abs(y - (rect.top + rect.height / 2));
+    return !best || distance < best.distance ? { target, distance } : best;
+  }, null)?.target || null;
+}
+
+function getCollectionDropTarget(el, y) {
   const colTarget = el?.closest?.('[data-drop-col]');
   if (colTarget) return colTarget;
 
-  const folderList = el?.closest?.('[data-folder-list-drop]');
-  const folderId = folderList?.dataset.folderListDrop;
-  return folderId ? $(`[data-drop-col="${CSS.escape(folderId)}"]`) : null;
+  const folderArea = el?.closest?.('[data-folder-area]');
+  return closestFolderTarget(folderArea, y);
 }
 
 document.addEventListener('dragover', (e) => {
-  const dropTarget = getCollectionDropTarget(e.target);
+  const dropTarget = getCollectionDropTarget(e.target, e.clientY);
   if (!dropTarget || !draggingItemId) return;
 
   e.preventDefault();
@@ -1755,12 +1779,12 @@ document.addEventListener('dragover', (e) => {
 });
 
 document.addEventListener('dragleave', (e) => {
-  const dropTarget = getCollectionDropTarget(e.target);
+  const dropTarget = getCollectionDropTarget(e.target, e.clientY);
   if (dropTarget && !dropTarget.contains(e.relatedTarget)) clearDropTarget();
 });
 
 document.addEventListener('drop', (e) => {
-  const dropTarget = getCollectionDropTarget(e.target);
+  const dropTarget = getCollectionDropTarget(e.target, e.clientY);
   if (!dropTarget) return;
 
   e.preventDefault();
@@ -1839,7 +1863,7 @@ document.addEventListener('pointermove', (e) => {
   setDraggingMode(true);
   e.preventDefault();
 
-  const dropTarget = getCollectionDropTarget(document.elementFromPoint(e.clientX, e.clientY));
+  const dropTarget = getCollectionDropTarget(document.elementFromPoint(e.clientX, e.clientY), e.clientY);
   setDropTarget(dropTarget || null);
 });
 
