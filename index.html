@@ -756,6 +756,9 @@ let currentDropTarget = null;
 let pointerDrag = null;
 let cropDrag = null;
 let suppressNextClick = false;
+let youtubeTitleTimer = null;
+let youtubeTitleSeq = 0;
+const youtubeTitleCache = new Map();
 
 function persist() {
   clearTimeout(saveTimer);
@@ -1021,6 +1024,52 @@ function getYouTubeId(url) {
 
 function youtubeThumbUrl(id) {
   return `https://img.youtube.com/vi/${encodeURIComponent(id)}/hqdefault.jpg`;
+}
+
+async function fetchYouTubeTitle(url) {
+  const id = getYouTubeId(url);
+  if (!id) return null;
+  if (youtubeTitleCache.has(id)) return youtubeTitleCache.get(id);
+
+  try {
+    const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(endpoint, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error('YouTube title unavailable');
+    const data = await res.json();
+    const title = String(data.title || '').trim();
+    youtubeTitleCache.set(id, title || null);
+    return title || null;
+  } catch (e) {
+    youtubeTitleCache.set(id, null);
+    return null;
+  }
+}
+
+function canAutoFillTitle() {
+  const titleEl = $('#f-title');
+  if (!titleEl) return false;
+  return !titleEl.value.trim() || titleEl.dataset.autoTitle === 'true';
+}
+
+function scheduleYouTubeTitleFill(url) {
+  clearTimeout(youtubeTitleTimer);
+  const currentSeq = ++youtubeTitleSeq;
+  youtubeTitleTimer = setTimeout(async () => {
+    const normalized = normalizeUrl(url);
+    if (!normalized || !getYouTubeId(normalized) || !canAutoFillTitle()) return;
+    const title = await fetchYouTubeTitle(normalized);
+    const urlEl = $('#f-url');
+    const titleEl = $('#f-title');
+    if (!title || currentSeq !== youtubeTitleSeq || !urlEl || !titleEl) return;
+    if (normalizeUrl(urlEl.value) !== normalized || !canAutoFillTitle()) return;
+
+    titleEl.value = title;
+    titleEl.dataset.autoTitle = 'true';
+    if (modalDraft) modalDraft.title = title;
+  }, 350);
 }
 
 function renderLinkPreview(url, extraClass='') {
@@ -1448,10 +1497,23 @@ function fileToDataUrl(file) {
   });
 }
 
-function compressImageDataUrl(dataUrl, maxSize = 1400, quality = 0.86) {
+function canvasToStorageDataUrl(canvas, preferPng = true) {
+  if (preferPng) {
+    const png = canvas.toDataURL('image/png');
+    if (png.length <= 4200000) return png;
+  }
+  return canvas.toDataURL('image/jpeg', 0.94);
+}
+
+function compressImageDataUrl(dataUrl, maxSize = 2600) {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
+      if (dataUrl.length <= 3600000 && Math.max(img.width, img.height) <= maxSize) {
+        resolve(dataUrl);
+        return;
+      }
+
       const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
       const width = Math.max(1, Math.round(img.width * scale));
       const height = Math.max(1, Math.round(img.height * scale));
@@ -1462,7 +1524,7 @@ function compressImageDataUrl(dataUrl, maxSize = 1400, quality = 0.86) {
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', quality));
+      resolve(canvasToStorageDataUrl(canvas, dataUrl.startsWith('data:image/png')));
     };
     img.onerror = () => resolve(dataUrl);
     img.src = dataUrl;
@@ -1531,7 +1593,7 @@ async function applyImageCrop() {
   canvas.height = sh;
   canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
 
-  state.quickAdd.imageData = canvas.toDataURL('image/jpeg', 0.9);
+  state.quickAdd.imageData = canvasToStorageDataUrl(canvas, true);
   state.quickAdd.cropRect = null;
   renderModal();
 }
@@ -1572,9 +1634,10 @@ async function draftFromClipboardData(clipboardData) {
 
   const url = normalizeUrl(text);
   if (url) {
+    const youtubeTitle = await fetchYouTubeTitle(url);
     return {
       type: 'link',
-      title: getDomain(url) || '',
+      title: youtubeTitle || getDomain(url) || '',
       content: '',
       url,
       collection: state.activeCol !== 'all' ? state.activeCol : 'links',
@@ -1935,6 +1998,17 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'search-input') {
     state.search = e.target.value;
     updateSearchResults();
+  }
+
+  if (e.target.id === 'f-title') {
+    e.target.dataset.autoTitle = 'false';
+    if (modalDraft) modalDraft.title = e.target.value;
+  }
+
+  if (e.target.id === 'f-url') {
+    const value = e.target.value.trim();
+    if (modalDraft) modalDraft.url = value;
+    scheduleYouTubeTitleFill(value);
   }
 });
 
