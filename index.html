@@ -13,6 +13,7 @@
     --cream: #eee9df;
     --cream-2: #e3ddd1;
     --paper: #fbf8f1;
+    --sidebar: #e8e2d6;
     --ink: #1c1814;
     --ink-soft: #3d342b;
     --rule: rgba(28, 24, 20, 0.12);
@@ -56,7 +57,7 @@
   .paper-noise {
     position: fixed; inset: 0;
     pointer-events: none;
-    opacity: 0.35;
+    opacity: 0.18;
     z-index: 0;
   }
 
@@ -66,8 +67,10 @@
   /* SIDEBAR */
   .sidebar {
     width: 100%;
+    background: var(--sidebar);
     border-bottom: 1px solid var(--rule);
     padding: 1.5rem;
+    transition: box-shadow 0.18s ease, background 0.18s ease;
   }
   @media (min-width: 768px) {
     .sidebar {
@@ -75,8 +78,11 @@
       min-height: 100vh;
       border-bottom: none;
       border-right: 1px solid var(--rule);
-      padding: 2rem;
+      padding: 2rem 2rem 2.25rem;
     }
+  }
+  body.dragging-item .sidebar {
+    box-shadow: inset -3px 0 0 rgba(61, 90, 71, 0.18);
   }
   .logo {
     display: flex; align-items: center; gap: 0.75rem;
@@ -100,16 +106,16 @@
   .col-item {
     width: 100%;
     display: flex; align-items: center; justify-content: space-between;
-    padding: 0.5rem 0.75rem;
+    padding: 0.56rem 0.75rem;
     border-radius: 0.25rem;
     transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
     margin-bottom: 1px;
     text-align: left;
   }
-  .col-item:hover:not(.active) { background: rgba(28, 24, 20, 0.04); }
+  .col-item:hover:not(.active) { background: rgba(28, 24, 20, 0.05); }
   .col-item.active { background: var(--primary); color: var(--cream); }
   .col-item.drop-target {
-    background: rgba(61, 90, 71, 0.12);
+    background: rgba(61, 90, 71, 0.15);
     box-shadow: inset 0 0 0 1px var(--primary);
   }
   .col-item.active.drop-target {
@@ -153,15 +159,20 @@
   .header-count {
     font-size: 0.78rem; opacity: 0.45; margin-top: 0.6rem; font-style: italic;
   }
-  .header-actions { display: flex; align-items: center; gap: 0.25rem; }
+  .header-actions { display: flex; align-items: center; gap: 0.45rem; }
   .icon-btn {
     width: 2.5rem; height: 2.5rem; border-radius: 0.25rem;
     display: flex; align-items: center; justify-content: center;
-    transition: background 0.15s, opacity 0.15s, transform 0.15s;
+    border: 1px solid transparent;
+    transition: background 0.15s, border-color 0.15s, opacity 0.15s, transform 0.15s, box-shadow 0.15s;
   }
-  .icon-btn:hover { background: rgba(28, 24, 20, 0.05); }
+  .icon-btn:hover {
+    background: rgba(28, 24, 20, 0.05);
+    border-color: var(--rule);
+  }
   .icon-btn.primary {
     background: var(--primary); color: var(--cream);
+    box-shadow: 0 8px 18px -14px rgba(28, 24, 20, 0.6);
   }
   .icon-btn.primary:hover { opacity: 0.92; background: var(--primary); }
 
@@ -171,19 +182,20 @@
   /* GRID */
   .grid {
     display: grid;
-    gap: 1.25rem;
+    gap: 1.35rem;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   }
   .card {
     background: var(--paper);
-    border: 1px solid var(--rule);
+    border: 1px solid rgba(28, 24, 20, 0.10);
     border-radius: 0.25rem;
-    padding: 1.25rem;
+    padding: 1.35rem;
     cursor: pointer;
-    transition: transform 0.18s ease, box-shadow 0.18s ease;
-    min-height: 160px;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    min-height: 172px;
     display: flex; flex-direction: column;
     animation: fadeIn 0.3s ease;
+    box-shadow: 0 1px 0 rgba(28, 24, 20, 0.03);
   }
   .card[draggable="true"] { cursor: grab; }
   .card.dragging {
@@ -192,12 +204,13 @@
     transform: rotate(-1deg);
   }
   .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 30px -12px rgba(28, 24, 20, 0.18);
+    transform: translateY(-1px);
+    border-color: rgba(28, 24, 20, 0.16);
+    box-shadow: 0 14px 32px -22px rgba(28, 24, 20, 0.36);
   }
   .card-top {
     display: flex; align-items: center; justify-content: space-between;
-    font-size: 0.7rem; margin-bottom: 0.75rem;
+    font-size: 0.68rem; margin-bottom: 0.85rem;
   }
   .card-type {
     display: flex; align-items: center; gap: 0.375rem;
@@ -207,16 +220,16 @@
   .card-coll { font-weight: 500; }
   .card-title {
     font-family: var(--font-serif);
-    font-size: 1.1rem;
-    font-weight: 500;
+    font-size: 1.18rem;
+    font-weight: 600;
     line-height: 1.3;
-    letter-spacing: -0.005em;
+    letter-spacing: 0;
     margin: 0 0 0.5rem 0;
   }
   .card-content {
     font-size: 0.85rem;
     line-height: 1.5;
-    opacity: 0.7;
+    opacity: 0.68;
     margin: 0 0 0.75rem 0;
     display: -webkit-box;
     -webkit-line-clamp: 3;
@@ -239,7 +252,7 @@
   .tags { display: flex; flex-wrap: wrap; gap: 0.375rem; }
   .tag {
     font-size: 0.68rem;
-    padding: 2px 7px;
+    padding: 3px 8px;
     border-radius: 2px;
     background: var(--cream-2);
     opacity: 0.85;
@@ -250,24 +263,35 @@
 
   /* EMPTY STATE */
   .empty {
-    padding: 5rem 0 6rem;
+    padding: 4rem 0 6rem;
     text-align: center;
     animation: fadeIn 0.3s ease;
   }
+  .empty-mark {
+    width: 4rem; height: 4rem;
+    margin: 0 auto 1rem;
+    border-radius: 9999px;
+    border: 1px solid var(--rule);
+    background: var(--paper);
+    color: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 14px 30px -24px rgba(28, 24, 20, 0.45);
+  }
   .empty-btn {
     display: inline-flex; align-items: center; justify-content: center;
-    width: 3.5rem; height: 3.5rem;
+    width: 3rem; height: 3rem;
     border-radius: 9999px;
     background: var(--primary); color: var(--cream);
-    transition: transform 0.15s;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 10px 20px -16px rgba(28, 24, 20, 0.7);
   }
-  .empty-btn:hover { transform: scale(1.05); }
+  .empty-btn:hover { transform: translateY(-1px) scale(1.03); }
   .empty-text {
-    margin-top: 1.25rem;
+    margin: 0 0 1.1rem;
     font-family: var(--font-serif);
     font-style: italic;
-    font-size: 0.95rem;
-    opacity: 0.55;
+    font-size: 1rem;
+    opacity: 0.62;
   }
 
   /* OVERLAY */
@@ -576,11 +600,16 @@ function clearDropTarget() {
   setDropTarget(null);
 }
 
+function setDraggingMode(active) {
+  document.body.classList.toggle('dragging-item', active);
+}
+
 function resetPointerDrag() {
   if (pointerDrag?.card) pointerDrag.card.classList.remove('dragging');
   pointerDrag = null;
   draggingItemId = null;
   clearDropTarget();
+  setDraggingMode(false);
 }
 
 function addCollection() {
@@ -749,8 +778,9 @@ function renderColItem(col, active, count, deletable) {
 function renderEmpty(isNew) {
   return `
     <div class="empty">
-      <button class="empty-btn" data-action="new-item" title="Adicionar item  ⌘N">${icon('plus', 22)}</button>
+      <div class="empty-mark">${icon('library', 25)}</div>
       <p class="empty-text">${isNew ? 'comece pelo primeiro' : 'vazio por aqui'}</p>
+      <button class="empty-btn" data-action="new-item" title="Adicionar item  ⌘N">${icon('plus', 21)}</button>
     </div>
   `;
 }
@@ -977,6 +1007,7 @@ document.addEventListener('dragstart', (e) => {
 
   draggingItemId = card.dataset.id;
   card.classList.add('dragging');
+  setDraggingMode(true);
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', draggingItemId);
@@ -987,6 +1018,7 @@ document.addEventListener('dragend', (e) => {
   e.target.closest('.card')?.classList.remove('dragging');
   draggingItemId = null;
   clearDropTarget();
+  setDraggingMode(false);
 });
 
 document.addEventListener('dragover', (e) => {
@@ -1042,6 +1074,7 @@ document.addEventListener('pointermove', (e) => {
   draggingItemId = pointerDrag.itemId;
   suppressNextClick = true;
   pointerDrag.card.classList.add('dragging');
+  setDraggingMode(true);
   e.preventDefault();
 
   const dropTarget = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-drop-col]');
