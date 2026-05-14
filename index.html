@@ -260,6 +260,8 @@
     border: 1px solid var(--rule-soft);
     background: var(--cream);
     margin: 0.15rem 0 0.85rem;
+    -webkit-user-drag: none;
+    user-select: none;
   }
   .card-url {
     display: inline-flex; align-items: center; gap: 0.375rem;
@@ -276,6 +278,8 @@
     background: rgba(255, 255, 255, 0.28);
     margin: 0.15rem 0 0.85rem;
     min-width: 0;
+    -webkit-user-drag: none;
+    user-select: none;
   }
   .link-preview.video-preview {
     display: block;
@@ -295,6 +299,7 @@
     height: 100%;
     object-fit: cover;
     display: block;
+    -webkit-user-drag: none;
   }
   .link-play {
     position: absolute;
@@ -1136,7 +1141,7 @@ function renderApp() {
           <div class="sidebar-label inline">Minhas Pastas</div>
           <button class="add-folder" data-action="add-col" title="Nova coleção">${icon('plus', 14)}</button>
         </div>
-        <div class="folder-list">
+        <div class="folder-list" data-folder-list-drop="${userCols.length === 1 ? esc(userCols[0].id) : ''}">
           ${userCols.length === 0
             ? '<p class="folder-empty">Crie pastas próprias para arrastar itens</p>'
             : userCols.map(col => renderColItem(col, state.activeCol === col.id, c[col.id] || 0, true)).join('')}
@@ -1731,8 +1736,17 @@ document.addEventListener('dragend', (e) => {
   setDraggingMode(false);
 });
 
+function getCollectionDropTarget(el) {
+  const colTarget = el?.closest?.('[data-drop-col]');
+  if (colTarget) return colTarget;
+
+  const folderList = el?.closest?.('[data-folder-list-drop]');
+  const folderId = folderList?.dataset.folderListDrop;
+  return folderId ? $(`[data-drop-col="${CSS.escape(folderId)}"]`) : null;
+}
+
 document.addEventListener('dragover', (e) => {
-  const dropTarget = e.target.closest('[data-drop-col]');
+  const dropTarget = getCollectionDropTarget(e.target);
   if (!dropTarget || !draggingItemId) return;
 
   e.preventDefault();
@@ -1741,12 +1755,12 @@ document.addEventListener('dragover', (e) => {
 });
 
 document.addEventListener('dragleave', (e) => {
-  const dropTarget = e.target.closest('[data-drop-col]');
+  const dropTarget = getCollectionDropTarget(e.target);
   if (dropTarget && !dropTarget.contains(e.relatedTarget)) clearDropTarget();
 });
 
 document.addEventListener('drop', (e) => {
-  const dropTarget = e.target.closest('[data-drop-col]');
+  const dropTarget = getCollectionDropTarget(e.target);
   if (!dropTarget) return;
 
   e.preventDefault();
@@ -1797,7 +1811,7 @@ document.addEventListener('pointercancel', () => {
 
 document.addEventListener('pointerdown', (e) => {
   if (e.button !== 0 || state.editing || state.viewing || state.quickAdd || state.showSearch) return;
-  if (e.target.closest('[data-stop], button, input, textarea, select')) return;
+  if (e.target.closest('button, input, textarea, select')) return;
 
   const card = e.target.closest('.card');
   if (!card) return;
@@ -1825,7 +1839,7 @@ document.addEventListener('pointermove', (e) => {
   setDraggingMode(true);
   e.preventDefault();
 
-  const dropTarget = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-drop-col]');
+  const dropTarget = getCollectionDropTarget(document.elementFromPoint(e.clientX, e.clientY));
   setDropTarget(dropTarget || null);
 });
 
