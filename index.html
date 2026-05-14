@@ -142,6 +142,22 @@
   .label-row { display: flex; align-items: center; justify-content: space-between; margin-top: 2rem; margin-bottom: 0.6rem; }
   .add-folder { opacity: 0.4; transition: opacity 0.15s; }
   .add-folder:hover { opacity: 1; }
+  .folder-list {
+    min-height: 2rem;
+    border-radius: 0.25rem;
+    transition: background 0.15s ease;
+  }
+  body.dragging-item .folder-list {
+    background: rgba(61, 90, 71, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(61, 90, 71, 0.12);
+  }
+  .folder-empty {
+    font-size: 0.75rem;
+    opacity: 0.4;
+    font-style: italic;
+    padding: 0.35rem 0.75rem;
+  }
+  body.dragging-item .folder-empty { opacity: 0.62; }
 
   /* MAIN */
   .main { flex: 1; min-height: 100vh; }
@@ -635,6 +651,7 @@ const DEFAULT_COLLECTIONS = [
   { id: 'escritos', name: 'Meus Escritos', icon: 'feather',      color: '#6b1f2a', system: true },
   { id: 'posts',    name: 'Posts Salvos',  icon: 'bookmark',     color: '#7a5230', system: true },
   { id: 'links',    name: 'Links',         icon: 'link',         color: '#3d5a6c', system: true },
+  { id: 'prints',   name: 'Prints',        icon: 'image',        color: '#6a5687', system: true },
 ];
 
 const ITEM_TYPES = [
@@ -667,6 +684,15 @@ function normalizeUrl(text) {
   if (/^https?:\/\/\S+$/i.test(value)) return value;
   if (/^[\w.-]+\.[a-z]{2,}(\/\S*)?$/i.test(value)) return 'https://' + value;
   return null;
+}
+
+function syncDefaultCollections(collections) {
+  const existing = Array.isArray(collections) ? collections : [];
+  const byId = new Map(existing.map(c => [c.id, c]));
+  const systemIds = new Set(DEFAULT_COLLECTIONS.map(c => c.id));
+  const systemCols = DEFAULT_COLLECTIONS.map(def => ({ ...def, ...(byId.get(def.id) || {}), system: true }));
+  const userCols = existing.filter(c => !systemIds.has(c.id));
+  return [...systemCols, ...userCols];
 }
 
 // ============ STATE ============
@@ -710,6 +736,7 @@ function load() {
       if (Array.isArray(data.collections) && data.collections.length) state.collections = data.collections;
     }
   } catch (e) { console.error('Load failed:', e); }
+  state.collections = syncDefaultCollections(state.collections);
   state.loading = false;
 }
 
@@ -985,9 +1012,9 @@ function renderApp() {
           <div class="sidebar-label inline">Minhas Pastas</div>
           <button class="add-folder" data-action="add-col" title="Nova coleção">${icon('plus', 14)}</button>
         </div>
-        <div>
+        <div class="folder-list">
           ${userCols.length === 0
-            ? '<p style="font-size:0.75rem;opacity:0.4;font-style:italic;padding:0.25rem 0.75rem;">Crie pastas próprias</p>'
+            ? '<p class="folder-empty">Crie pastas próprias para arrastar itens</p>'
             : userCols.map(col => renderColItem(col, state.activeCol === col.id, c[col.id] || 0, true)).join('')}
         </div>
       </aside>
@@ -1458,7 +1485,7 @@ async function draftFromClipboardData(clipboardData) {
         imageData,
         originalImageData: imageData,
         cropRect: null,
-        collection: state.activeCol !== 'all' ? state.activeCol : 'posts',
+        collection: state.activeCol !== 'all' ? state.activeCol : 'prints',
         tags: ['print'],
         previewLabel: 'Imagem copiada',
       };
