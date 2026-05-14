@@ -102,12 +102,19 @@
     display: flex; align-items: center; justify-content: space-between;
     padding: 0.5rem 0.75rem;
     border-radius: 0.25rem;
-    transition: background 0.15s ease, color 0.15s ease;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
     margin-bottom: 1px;
     text-align: left;
   }
   .col-item:hover:not(.active) { background: rgba(28, 24, 20, 0.04); }
   .col-item.active { background: var(--primary); color: var(--cream); }
+  .col-item.drop-target {
+    background: rgba(61, 90, 71, 0.12);
+    box-shadow: inset 0 0 0 1px var(--primary);
+  }
+  .col-item.active.drop-target {
+    box-shadow: inset 0 0 0 2px var(--cream);
+  }
   .col-item-left {
     display: flex; align-items: center; gap: 0.75rem;
     font-size: 0.9rem;
@@ -177,6 +184,12 @@
     min-height: 160px;
     display: flex; flex-direction: column;
     animation: fadeIn 0.3s ease;
+  }
+  .card[draggable="true"] { cursor: grab; }
+  .card.dragging {
+    cursor: grabbing;
+    opacity: 0.55;
+    transform: rotate(-1deg);
   }
   .card:hover {
     transform: translateY(-2px);
@@ -479,6 +492,11 @@ let state = {
 };
 
 let saveTimer;
+let draggingItemId = null;
+let currentDropTarget = null;
+let pointerDrag = null;
+let suppressNextClick = false;
+
 function persist() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
@@ -533,6 +551,36 @@ function toggleStudied(id) {
   });
   persist();
   renderApp();
+}
+
+function moveItemToCollection(itemId, collectionId) {
+  if (!state.collections.some(c => c.id === collectionId)) return;
+  const item = state.items.find(i => i.id === itemId);
+  if (!item || item.collection === collectionId) return;
+
+  state.items = state.items.map(i =>
+    i.id === itemId ? { ...i, collection: collectionId, updatedAt: Date.now() } : i
+  );
+  persist();
+  renderApp();
+}
+
+function setDropTarget(el) {
+  if (currentDropTarget === el) return;
+  if (currentDropTarget) currentDropTarget.classList.remove('drop-target');
+  currentDropTarget = el;
+  if (currentDropTarget) currentDropTarget.classList.add('drop-target');
+}
+
+function clearDropTarget() {
+  setDropTarget(null);
+}
+
+function resetPointerDrag() {
+  if (pointerDrag?.card) pointerDrag.card.classList.remove('dragging');
+  pointerDrag = null;
+  draggingItemId = null;
+  clearDropTarget();
 }
 
 function addCollection() {
@@ -685,7 +733,7 @@ function renderApp() {
 
 function renderColItem(col, active, count, deletable) {
   return `
-    <button class="col-item ${active ? 'active' : ''}" data-action="set-col" data-id="${esc(col.id)}">
+    <button class="col-item ${active ? 'active' : ''}" data-action="set-col" data-id="${esc(col.id)}" data-drop-col="${esc(col.id)}">
       <span class="col-item-left">
         <span style="color:${col.color};display:inline-flex;flex-shrink:0;">${icon(col.icon, 15)}</span>
         <span>${esc(col.name)}</span>
@@ -716,7 +764,7 @@ function renderCard(item, idx) {
   const tags = item.tags || [];
 
   return `
-    <article class="card" data-action="edit" data-id="${esc(item.id)}" style="animation-delay:${Math.min(idx * 30, 300)}ms">
+    <article class="card" data-action="edit" data-id="${esc(item.id)}" draggable="true" style="animation-delay:${Math.min(idx * 30, 300)}ms">
       <div class="card-top">
         <span class="card-type">${icon(type.icon, 11)}<span>${esc(type.label)}</span></span>
         ${col ? `<span class="card-coll" style="color:${col.color}">${esc(col.name)}</span>` : ''}
@@ -923,7 +971,111 @@ function renderAll() {
 }
 
 // ============ EVENT HANDLERS ============
+document.addEventListener('dragstart', (e) => {
+  const card = e.target.closest('.card[draggable="true"]');
+  if (!card) return;
+
+  draggingItemId = card.dataset.id;
+  card.classList.add('dragging');
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', draggingItemId);
+  }
+});
+
+document.addEventListener('dragend', (e) => {
+  e.target.closest('.card')?.classList.remove('dragging');
+  draggingItemId = null;
+  clearDropTarget();
+});
+
+document.addEventListener('dragover', (e) => {
+  const dropTarget = e.target.closest('[data-drop-col]');
+  if (!dropTarget || !draggingItemId) return;
+
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  setDropTarget(dropTarget);
+});
+
+document.addEventListener('dragleave', (e) => {
+  const dropTarget = e.target.closest('[data-drop-col]');
+  if (dropTarget && !dropTarget.contains(e.relatedTarget)) clearDropTarget();
+});
+
+document.addEventListener('drop', (e) => {
+  const dropTarget = e.target.closest('[data-drop-col]');
+  if (!dropTarget) return;
+
+  e.preventDefault();
+  const itemId = draggingItemId || e.dataTransfer?.getData('text/plain');
+  const collectionId = dropTarget.dataset.dropCol;
+  draggingItemId = null;
+  clearDropTarget();
+  moveItemToCollection(itemId, collectionId);
+});
+
+document.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || state.editing || state.showSearch) return;
+  if (e.target.closest('[data-stop], button, input, textarea, select')) return;
+
+  const card = e.target.closest('.card');
+  if (!card) return;
+
+  pointerDrag = {
+    itemId: card.dataset.id,
+    startX: e.clientX,
+    startY: e.clientY,
+    active: false,
+    card,
+  };
+});
+
+document.addEventListener('pointermove', (e) => {
+  if (!pointerDrag) return;
+
+  const dx = Math.abs(e.clientX - pointerDrag.startX);
+  const dy = Math.abs(e.clientY - pointerDrag.startY);
+  if (!pointerDrag.active && dx + dy < 8) return;
+
+  pointerDrag.active = true;
+  draggingItemId = pointerDrag.itemId;
+  suppressNextClick = true;
+  pointerDrag.card.classList.add('dragging');
+  e.preventDefault();
+
+  const dropTarget = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-drop-col]');
+  setDropTarget(dropTarget || null);
+});
+
+document.addEventListener('pointerup', (e) => {
+  if (!pointerDrag) return;
+
+  const wasDragging = pointerDrag.active;
+  const itemId = pointerDrag.itemId;
+  const collectionId = currentDropTarget?.dataset.dropCol;
+
+  if (wasDragging) {
+    e.preventDefault();
+    resetPointerDrag();
+    if (collectionId) moveItemToCollection(itemId, collectionId);
+    setTimeout(() => { suppressNextClick = false; }, 0);
+    return;
+  }
+
+  pointerDrag = null;
+});
+
+document.addEventListener('pointercancel', resetPointerDrag);
+
 document.addEventListener('click', (e) => {
+  if (suppressNextClick) {
+    e.preventDefault();
+    e.stopPropagation();
+    suppressNextClick = false;
+    return;
+  }
+
   // 1. Stop on elements explicitly marked (card URL link)
   if (e.target.closest('[data-stop]')) return;
 
